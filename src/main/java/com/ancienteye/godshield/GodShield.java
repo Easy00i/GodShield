@@ -260,7 +260,7 @@ class GodShieldItem {
                 .color(NamedTextColor.DARK_AQUA)
                 .decoration(TextDecoration.ITALIC, false),
             Component.text("    Particle cube · 5❤/s · 10 sec · No escape")
-                .color(NamedTextColor.DARK_CYAN)
+                .color(NamedTextColor.DARK_AQUA)
                 .decoration(TextDecoration.ITALIC, false),
             Component.text(""),
             Component.text(" 👁 Shift + Left-Click  »  Mind Control")
