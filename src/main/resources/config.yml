@@ -1,0 +1,43 @@
+# ╔══════════════════════════════════╗
+# ║        GOD SHIELD CONFIG         ║
+# ╚══════════════════════════════════╝
+
+godshield:
+  custom-model-data: 1001        # CMD for resource pack
+  orbit-radius: 1.8              # Distance of orbiting shields
+  orbit-speed: 0.04              # Rotation speed (radians/tick)
+  orbit-height: 0.85             # Y offset above player feet
+
+abilities:
+  shockwave:
+    cooldown: 15                 # seconds
+    radius: 12                   # block destruction + damage radius
+    damage: 10000.0              # one-shot damage
+    break-blocks: true
+    knockback: 3.0
+
+  prison:
+    cooldown: 20                 # seconds
+    damage-per-second: 10.0      # 10 = 5 hearts
+    duration: 10                 # seconds
+    size: 1.4                    # half-size of cube
+
+  mind-control:
+    cooldown: 30                 # seconds
+    duration: 15                 # seconds
+
+# ── Crafting Recipe ──────────────────────────────────
+# Layout:
+#   [D][M][D]
+#   [N][S][N]
+#   [W][E][W]
+#  D=DiamondBlock M=Mace N=NetheriteIngot
+#  S=Shield W=Wood E=DragonEgg
+recipe:
+  wood: OAK_LOG
+  netherite-ingot: NETHERITE_INGOT
+  diamond-block: DIAMOND_BLOCK
+
+# ── DO NOT EDIT BELOW ─────────────────────────────────
+data:
+  mace-crafted: false
