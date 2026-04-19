@@ -1,0 +1,17 @@
+name: GodShield
+version: "1.0.0"
+main: com.ancienteye.godshield.GodShield
+api-version: "1.21"
+description: "God Shield Plugin"
+
+commands:
+  god:
+    description: God Shield admin command
+    usage: /god give shield [player]
+    permission: godshield.admin
+    permission-message: "You don't have permission to use this command."
+
+permissions:
+  godshield.admin:
+    description: Allows use of /god commands
+    default: op
