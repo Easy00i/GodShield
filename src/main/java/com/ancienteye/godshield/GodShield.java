@@ -50,12 +50,14 @@ public class GodShield extends JavaPlugin implements TabCompleter {
         // Register tab completer for /god
         if (getCommand("god") != null) getCommand("god").setTabCompleter(this);
 
-        // Re-activate for players already holding shield on reload
-        for (Player p : getServer().getOnlinePlayers()) {
-            if (GodShieldItem.isGodShield(p.getInventory().getItemInOffHand())) {
-                shieldManager.activate(p);
-            }
+        // Re-activate for players already holding shield on reload (with 1 tick delay)
+Bukkit.getScheduler().runTaskLater(this, () -> {
+    for (Player p : getServer().getOnlinePlayers()) {
+        if (GodShieldItem.isGodShield(p.getInventory().getItemInOffHand())) {
+            shieldManager.activate(p);
         }
+    }
+}, 1L);
 
         getLogger().info("[GodShield] Plugin ENABLED.");
     }
