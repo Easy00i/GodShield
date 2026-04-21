@@ -230,7 +230,7 @@ class AbilityListener implements Listener {
     //  Raytrace helper  –  returns LivingEntity in line of sight
     // ─────────────────────────────────────────────────────────────
     private LivingEntity getTargetEntity(Player player, double maxRange) {
-        RayTraceResult result = player.rayTraceEntities(maxRange);
+        RayTraceResult result = player.rayTraceEntities((int) maxRange);
         if (result == null) return null;
         Entity hit = result.getHitEntity();
         if (hit instanceof LivingEntity living && !hit.equals(player)) return living;
