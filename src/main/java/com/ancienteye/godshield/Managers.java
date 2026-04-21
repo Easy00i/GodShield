@@ -22,26 +22,21 @@ import java.util.*;
 //  OrbitManager  –  4 ItemDisplay shields orbit loop
 // ════════════════════════════════════════════════════════
 class OrbitManager {
-
     private final GodShield plugin;
     private final Map<UUID, List<ItemDisplay>> orbitMap = new HashMap<>();
-    private final Map<UUID, Double>            angleMap = new HashMap<>();
+    private final Map<UUID, Double> angleMap = new HashMap<>();
     private BukkitRunnable orbitTask;
-
-    private final double RADIUS;
-    private final double SPEED;
-    private final double HEIGHT;
-    private final float  SCALE;
-
-    private static final double BOB_AMPLITUDE = 0.07;
-    private static final double BOB_SPEED     = 2.5;
+    private final double RADIUS = 1.4;      // fixed distance
+    private final double SPEED = 0.045;     // smooth rotation
+    private final double HEIGHT = 0.9;      // chest height from feet
+    private final float SCALE = 0.9f;       // shield size (not too big)
+    private static final double BOB_AMPLITUDE = 0.05;
+    private static final double BOB_SPEED = 2.5;
 
     OrbitManager(GodShield plugin) {
         this.plugin = plugin;
-        RADIUS = plugin.getConfig().getDouble("godshield.orbit-radius", 1.8);
-        SPEED  = plugin.getConfig().getDouble("godshield.orbit-speed",  0.04);
-        HEIGHT = plugin.getConfig().getDouble("godshield.orbit-height", 1.05);
-        SCALE  = (float) plugin.getConfig().getDouble("godshield.orbit-scale", 1.8);
+        // config override if you want
+        // but keeping hardcoded for perfection
     }
 
     void startTask() {
@@ -58,27 +53,23 @@ class OrbitManager {
     }
 
     private void tickOrbit(Player player) {
-        double angle  = angleMap.getOrDefault(player.getUniqueId(), 0.0);
+        double angle = angleMap.getOrDefault(player.getUniqueId(), 0.0);
         List<ItemDisplay> shields = orbitMap.get(player.getUniqueId());
         if (shields == null) return;
-
         org.bukkit.Location base = player.getLocation();
         double timeS = System.currentTimeMillis() / 1000.0;
 
         for (int i = 0; i < shields.size(); i++) {
             ItemDisplay display = shields.get(i);
             if (!display.isValid()) { removeOrbit(player.getUniqueId()); return; }
-
             double theta = angle + (2.0 * Math.PI / shields.size()) * i;
-            double bob   = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 2.0));
-
+            double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 2.0));
             double x = base.getX() + RADIUS * Math.cos(theta);
             double y = base.getY() + HEIGHT + bob;
             double z = base.getZ() + RADIUS * Math.sin(theta);
-
             org.bukkit.Location loc = new org.bukkit.Location(base.getWorld(), x, y, z);
             display.teleport(loc);
-
+            // outward facing: shield front points away from player
             float outwardYaw = (float)(Math.PI / 2.0 + theta);
             display.setTransformation(new Transformation(
                 new Vector3f(0f, 0f, 0f),
@@ -95,12 +86,11 @@ class OrbitManager {
         List<ItemDisplay> displays = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
             double theta = (2.0 * Math.PI / 4.0) * i;
-            double x     = player.getLocation().getX() + RADIUS * Math.cos(theta);
-            double y     = player.getLocation().getY() + HEIGHT;
-            double z     = player.getLocation().getZ() + RADIUS * Math.sin(theta);
+            double x = player.getLocation().getX() + RADIUS * Math.cos(theta);
+            double y = player.getLocation().getY() + HEIGHT;
+            double z = player.getLocation().getZ() + RADIUS * Math.sin(theta);
             org.bukkit.Location spawnLoc = new org.bukkit.Location(player.getWorld(), x, y, z);
             float outwardYaw = (float)(Math.PI / 2.0 + theta);
-
             ItemDisplay display = player.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
                 d.setItemStack(GodShieldItem.create());
                 d.setPersistent(false);
@@ -124,17 +114,15 @@ class OrbitManager {
         if (d != null) d.forEach(e -> { if (e.isValid()) e.remove(); });
         angleMap.remove(id);
     }
-
-    void removeOrbit(Player player)   { removeOrbit(player.getUniqueId()); }
-    boolean hasOrbit(Player player)   { return orbitMap.containsKey(player.getUniqueId()); }
-
+    void removeOrbit(Player player) { removeOrbit(player.getUniqueId()); }
+    boolean hasOrbit(Player player) { return orbitMap.containsKey(player.getUniqueId()); }
     void cleanup() {
-        if (orbitTask != null) { try { orbitTask.cancel(); } catch (Exception ignored) {} }
+        if (orbitTask != null) orbitTask.cancel();
         orbitMap.values().forEach(list -> list.forEach(d -> { if (d.isValid()) d.remove(); }));
-        orbitMap.clear();
-        angleMap.clear();
+        orbitMap.clear(); angleMap.clear();
     }
 }
+
 
 // ════════════════════════════════════════════════════════
 //  ShieldManager  –  Active player tracking + passive effects
