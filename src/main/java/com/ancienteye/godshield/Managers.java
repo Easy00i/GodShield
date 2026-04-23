@@ -28,14 +28,18 @@ class OrbitManager {
     private final Map<UUID, Double>            angleMap = new HashMap<>();
     private BukkitRunnable orbitTask;
 
-    // ── Constants ─────────────────────────────────────────────────
-    private static final int    SHIELD_COUNT  = 6;       // 6 shields evenly spaced
-    private static final double RADIUS        = 1.0;     // 1 block from player (reduced from 1.25)
-    private static final double SPEED         = 0.018;   // slow smooth orbit
-    private static final double HEIGHT        = 1.15;    // safely above ground, never touches
-    private static final float  SCALE         = 1.35f;   // slightly smaller than player height
-    private static final double BOB_AMPLITUDE = 0.055;   // ±0.055 blocks water-float
-    private static final double BOB_SPEED     = 2.2;     // gentle cycle speed
+    // ── Orbit constants ───────────────────────────────────────────
+    // RADIUS  : ~1 block from player centre (matches photo)
+    // SPEED   : very slow — 0.018 rad/tick ≈ 1 full orbit per ~6 sec
+    // HEIGHT  : chest height; shields float, never touch ground
+    // SCALE   : slightly smaller than player height (matches photo)
+    // BOB     : gentle sine-wave up/down, like floating on water
+    private static final double RADIUS        = 1.25;
+    private static final double SPEED         = 0.018;
+    private static final double HEIGHT        = 0.95;
+    private static final float  SCALE         = 1.35f;
+    private static final double BOB_AMPLITUDE = 0.055;   // ±0.055 blocks
+    private static final double BOB_SPEED     = 2.2;     // gentle cycles/sec
 
     OrbitManager(GodShield plugin) {
         this.plugin = plugin;
@@ -66,10 +70,12 @@ class OrbitManager {
             ItemDisplay display = shields.get(i);
             if (!display.isValid()) { removeOrbit(player.getUniqueId()); return; }
 
+            // Each shield is 90° apart (4 shields × 90° = 360°)
             double theta = angle + (2.0 * Math.PI / shields.size()) * i;
 
-            // Water-float bob — each shield phase-shifted for wave effect
-            double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 3.0));
+            // Gentle water-float bob — each shield phase-shifted so they
+            // don't all move in unison (creates a wave around the player)
+            double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 2.0));
 
             double x = base.getX() + RADIUS * Math.cos(theta);
             double y = base.getY() + HEIGHT + bob;
@@ -77,14 +83,15 @@ class OrbitManager {
 
             display.teleport(new org.bukkit.Location(base.getWorld(), x, y, z));
 
-            // α = 3π/2 − θ  →  wood side (back) faces OUTWARD, design faces player
-            float woodOutward = (float)(3.0 * Math.PI / 2.0 - theta);
+            // ── Correct outward-facing rotation ───────────────────
+            // α = π/2 − θ  →  front face always points away from player
+            float faceYaw = (float)(Math.PI / 2.0 - theta);
 
             display.setTransformation(new Transformation(
-                new Vector3f(0f, 0f, 0f),
-                new AxisAngle4f(woodOutward, 0f, 1f, 0f),
-                new Vector3f(SCALE, SCALE, SCALE),
-                new AxisAngle4f(0f, 0f, 1f, 0f)
+                new Vector3f(0f, 0f, 0f),                   // no translation
+                new AxisAngle4f(faceYaw, 0f, 1f, 0f),       // Y-axis rotation: face outward
+                new Vector3f(SCALE, SCALE, SCALE),           // uniform scale
+                new AxisAngle4f(0f, 0f, 1f, 0f)             // no additional spin
             ));
         }
         angleMap.put(player.getUniqueId(), angle + SPEED);
@@ -93,12 +100,12 @@ class OrbitManager {
     void addOrbit(Player player) {
         if (orbitMap.containsKey(player.getUniqueId())) return;
         List<ItemDisplay> displays = new ArrayList<>();
-        for (int i = 0; i < SHIELD_COUNT; i++) {
-            double theta    = (2.0 * Math.PI / SHIELD_COUNT) * i;
-            double x        = player.getLocation().getX() + RADIUS * Math.cos(theta);
-            double y        = player.getLocation().getY() + HEIGHT;
-            double z        = player.getLocation().getZ() + RADIUS * Math.sin(theta);
-            float woodOutward = (float)(3.0 * Math.PI / 2.0 - theta);
+        for (int i = 0; i < 4; i++) {
+            double theta     = (2.0 * Math.PI / 4.0) * i;
+            double x         = player.getLocation().getX() + RADIUS * Math.cos(theta);
+            double y         = player.getLocation().getY() + HEIGHT;
+            double z         = player.getLocation().getZ() + RADIUS * Math.sin(theta);
+            float  faceYaw   = (float)(Math.PI / 2.0 - theta);
             org.bukkit.Location spawnLoc = new org.bukkit.Location(player.getWorld(), x, y, z);
 
             ItemDisplay display = player.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
@@ -108,7 +115,7 @@ class OrbitManager {
                 d.setGravity(false);
                 d.setTransformation(new Transformation(
                     new Vector3f(0f, 0f, 0f),
-                    new AxisAngle4f(woodOutward, 0f, 1f, 0f),
+                    new AxisAngle4f(faceYaw, 0f, 1f, 0f),
                     new Vector3f(SCALE, SCALE, SCALE),
                     new AxisAngle4f(0f, 0f, 1f, 0f)
                 ));
