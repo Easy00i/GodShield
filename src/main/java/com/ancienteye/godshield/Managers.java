@@ -34,9 +34,9 @@ class OrbitManager {
     // HEIGHT  : chest height; shields float, never touch ground
     // SCALE   : slightly smaller than player height (matches photo)
     // BOB     : gentle sine-wave up/down, like floating on water
-    private static final double RADIUS        = 1.25;
+    private static final double RADIUS        = 1.0;
     private static final double SPEED         = 0.018;
-    private static final double HEIGHT        = 0.95;
+    private static final double HEIGHT        = 1.2;
     private static final float  SCALE         = 1.35f;
     private static final double BOB_AMPLITUDE = 0.055;   // ±0.055 blocks
     private static final double BOB_SPEED     = 2.2;     // gentle cycles/sec
@@ -85,8 +85,8 @@ class OrbitManager {
 
             // ── Correct outward-facing rotation ───────────────────
             // α = π/2 − θ  →  front face always points away from player
-            float faceYaw = (float)(Math.PI / 2.0 - theta);
-
+            float faceYaw = (float)(3.0 * Math.PI / 2.0 - theta);
+            
             display.setTransformation(new Transformation(
                 new Vector3f(0f, 0f, 0f),                   // no translation
                 new AxisAngle4f(faceYaw, 0f, 1f, 0f),       // Y-axis rotation: face outward
@@ -100,12 +100,12 @@ class OrbitManager {
     void addOrbit(Player player) {
         if (orbitMap.containsKey(player.getUniqueId())) return;
         List<ItemDisplay> displays = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            double theta     = (2.0 * Math.PI / 4.0) * i;
+        for (int i = 0; i < 6; i++) {
+            double theta     = (2.0 * Math.PI / 6.0) * i;
             double x         = player.getLocation().getX() + RADIUS * Math.cos(theta);
             double y         = player.getLocation().getY() + HEIGHT;
             double z         = player.getLocation().getZ() + RADIUS * Math.sin(theta);
-            float  faceYaw   = (float)(Math.PI / 2.0 - theta);
+            float faceYaw = (float)(3.0 * Math.PI / 2.0 - theta);
             org.bukkit.Location spawnLoc = new org.bukkit.Location(player.getWorld(), x, y, z);
 
             ItemDisplay display = player.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
