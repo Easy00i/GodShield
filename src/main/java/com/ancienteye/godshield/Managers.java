@@ -19,24 +19,24 @@ import org.joml.Vector3f;
 import java.util.*;
 
 // ════════════════════════════════════════════════════════
-//  OrbitManager  –  4 ItemDisplay shields orbit loop
+//  OrbitManager  –  4 ItemDisplay shields orbit loop (PERFECTED)
 // ════════════════════════════════════════════════════════
 class OrbitManager {
     private final GodShield plugin;
     private final Map<UUID, List<ItemDisplay>> orbitMap = new HashMap<>();
     private final Map<UUID, Double> angleMap = new HashMap<>();
     private BukkitRunnable orbitTask;
-    private final double RADIUS = 1.4;      // fixed distance
-    private final double SPEED = 0.045;     // smooth rotation
-    private final double HEIGHT = 0.9;      // chest height from feet
-    private final float SCALE = 0.9f;       // shield size (not too big)
-    private static final double BOB_AMPLITUDE = 0.05;
-    private static final double BOB_SPEED = 2.5;
+    
+    // --- Aapke custom settings ---
+    private final double RADIUS = 1.0;      // Ekdam 1 Block dur
+    private final double SPEED = 0.02;      // Dheere dheere smooth orbit
+    private final double HEIGHT = 1.0;      // Player ki chest/waist height
+    private final float SCALE = 1.0f;       // Photo jaisa size
+    private static final double BOB_AMPLITUDE = 0.1; // Water jaisa floating effect
+    private static final double BOB_SPEED = 2.0;     // Floating ki speed
 
     OrbitManager(GodShield plugin) {
         this.plugin = plugin;
-        // config override if you want
-        // but keeping hardcoded for perfection
     }
 
     void startTask() {
@@ -56,24 +56,33 @@ class OrbitManager {
         double angle = angleMap.getOrDefault(player.getUniqueId(), 0.0);
         List<ItemDisplay> shields = orbitMap.get(player.getUniqueId());
         if (shields == null) return;
+        
         org.bukkit.Location base = player.getLocation();
         double timeS = System.currentTimeMillis() / 1000.0;
 
         for (int i = 0; i < shields.size(); i++) {
             ItemDisplay display = shields.get(i);
             if (!display.isValid()) { removeOrbit(player.getUniqueId()); return; }
+            
             double theta = angle + (2.0 * Math.PI / shields.size()) * i;
+            
+            // Water floating effect (Up & Down)
             double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 2.0));
+            
             double x = base.getX() + RADIUS * Math.cos(theta);
             double y = base.getY() + HEIGHT + bob;
             double z = base.getZ() + RADIUS * Math.sin(theta);
+            
             org.bukkit.Location loc = new org.bukkit.Location(base.getWorld(), x, y, z);
             display.teleport(loc);
-            // outward facing: shield front points away from player
-            float outwardYaw = (float)(Math.PI / 2.0 + theta);
+            
+            // Shield ko sidha rakhna aur bahar ki taraf face karwana
+            // Agar shield ka wood bahar ki taraf aaye, toh 'Math.PI' ko hata dena ya add kar dena
+            float yaw = (float) (-theta + Math.PI); 
+            
             display.setTransformation(new Transformation(
                 new Vector3f(0f, 0f, 0f),
-                new AxisAngle4f(outwardYaw, 0f, 1f, 0f),
+                new AxisAngle4f(yaw, 0f, 1f, 0f), // Sirf Y-axis par ghumega (Roll/Pitch nahi hoga)
                 new Vector3f(SCALE, SCALE, SCALE),
                 new AxisAngle4f(0f, 0f, 1f, 0f)
             ));
@@ -84,21 +93,28 @@ class OrbitManager {
     void addOrbit(Player player) {
         if (orbitMap.containsKey(player.getUniqueId())) return;
         List<ItemDisplay> displays = new ArrayList<>();
+        
         for (int i = 0; i < 4; i++) {
             double theta = (2.0 * Math.PI / 4.0) * i;
             double x = player.getLocation().getX() + RADIUS * Math.cos(theta);
             double y = player.getLocation().getY() + HEIGHT;
             double z = player.getLocation().getZ() + RADIUS * Math.sin(theta);
+            
             org.bukkit.Location spawnLoc = new org.bukkit.Location(player.getWorld(), x, y, z);
-            float outwardYaw = (float)(Math.PI / 2.0 + theta);
+            
             ItemDisplay display = player.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
                 d.setItemStack(GodShieldItem.create());
                 d.setPersistent(false);
                 d.setInvulnerable(true);
                 d.setGravity(false);
+                
+                // Ye line sabse zaroori hai! Isse shield ekdam sidha (vertical) khada rahega
+                d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD); 
+                
+                float yaw = (float) (-theta + Math.PI);
                 d.setTransformation(new Transformation(
                     new Vector3f(0f, 0f, 0f),
-                    new AxisAngle4f(outwardYaw, 0f, 1f, 0f),
+                    new AxisAngle4f(yaw, 0f, 1f, 0f),
                     new Vector3f(SCALE, SCALE, SCALE),
                     new AxisAngle4f(0f, 0f, 1f, 0f)
                 ));
@@ -116,6 +132,7 @@ class OrbitManager {
     }
     void removeOrbit(Player player) { removeOrbit(player.getUniqueId()); }
     boolean hasOrbit(Player player) { return orbitMap.containsKey(player.getUniqueId()); }
+    
     void cleanup() {
         if (orbitTask != null) orbitTask.cancel();
         orbitMap.values().forEach(list -> list.forEach(d -> { if (d.isValid()) d.remove(); }));
