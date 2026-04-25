@@ -5,6 +5,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -218,6 +219,13 @@ class CraftListener implements Listener {
                 .color(NamedTextColor.GOLD));
             p.sendMessage(Component.text("   Use it to craft the God Shield.")
                 .color(NamedTextColor.YELLOW));
+
+            // Server mein sab players ko custom sound sunao
+for (Player online : Bukkit.getOnlinePlayers()) {
+    online.playSound(online.getLocation(),
+        "godshield.mace_forged", // custom sound key
+        SoundCategory.MASTER, 1.0f, 1.0f);
+      }
             return;
         }
 
@@ -233,6 +241,12 @@ class CraftListener implements Listener {
         org.bukkit.Location tableLoc = p.getLocation(); // fallback: player feet
         if (event.getView().getTopInventory().getLocation() != null) {
             tableLoc = event.getView().getTopInventory().getLocation();
+        }
+
+        for (Player online : Bukkit.getOnlinePlayers()) {
+    online.playSound(online.getLocation(),
+        "godshield.shield_forged",
+        SoundCategory.MASTER, 1.0f, 1.0f);
         }
 
         plugin.getRitualManager().startRitual(p, tableLoc);
