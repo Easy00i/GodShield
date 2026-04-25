@@ -727,7 +727,7 @@ class ActiveRitual {
     private void startBossBar() {
         bossBarStartTime = System.currentTimeMillis();
         bossBarStarted   = true;
-        bossBar = Bukkit.createBossBar("", BarColor.RED, BarStyle.SEGMENTED_20);
+        bossBar = Bukkit.createBossBar("", BarColor.RED, BarStyle.SOLID);
         bossBar.setProgress(1.0);
         // Add crafter + nearby players
         Player crafter = Bukkit.getPlayer(crafterUUID);
