@@ -553,10 +553,8 @@ class ActiveRitual {
                     double prog = (double) remaining / RITUAL_MS;
                     bossBar.setProgress(Math.max(0, Math.min(1, prog)));
                     long s = remaining / 1000, min = s / 60, sec = s % 60;
-                    bossBar.name(Component.text(
                         bossBar.setTitle("⚔ God Shield Ritual  ─  " + min + "m " + String.format("%02d", sec) + "s");
     
-
                 }
 
                 tick++;
