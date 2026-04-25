@@ -23,6 +23,9 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 // ════════════════════════════════════════════════════════
 //  PlayerListener  –  Off-hand changes
@@ -92,13 +95,32 @@ class DamageListener implements Listener {
 }
 
 // ════════════════════════════════════════════════════════
-//  AbilityListener  –  Input → Abilities (100% FIXED)
+//  AbilityListener  –  Input → Abilities
+//
+//  FIX: Paper fires PlayerInteractEvent TWICE per click —
+//  once for HAND, once for OFF_HAND. Without a guard, every
+//  ability fires 2x per click. We use per-tick HashSets to
+//  ensure each ability fires at most once per player per tick.
 // ════════════════════════════════════════════════════════
 class AbilityListener implements Listener {
     private final GodShield plugin;
-    AbilityListener(GodShield plugin) { this.plugin = plugin; }
 
-    // ── SHOCKWAVE (Shift + Right Click) & LEFT CLICK AIR ────────────
+    // Per-tick guards — cleared every tick so abilities can fire again next tick
+    private final Set<UUID> swGuard = new HashSet<>();   // shockwave
+    private final Set<UUID> lcGuard = new HashSet<>();   // left-click (prison/mind)
+
+    AbilityListener(GodShield plugin) {
+        this.plugin = plugin;
+        // Clear guards every tick
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override public void run() {
+                swGuard.clear();
+                lcGuard.clear();
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    // ── SHOCKWAVE (Shift + Right Click) ─────────────────────────
     @EventHandler(priority = EventPriority.LOWEST)
     public void onInteract(PlayerInteractEvent event) {
         Player p = event.getPlayer();
@@ -106,32 +128,38 @@ class AbilityListener implements Listener {
 
         Action a = event.getAction();
 
-        // --- RIGHT CLICK (Shockwave) ---
+        // ── RIGHT CLICK → Shockwave ───────────────────────────
         if (a == Action.RIGHT_CLICK_AIR || a == Action.RIGHT_CLICK_BLOCK) {
-            // Off-hand interference fix (20 tick cooldown blocks shield raise)
+
+            // Always cancel OFF_HAND to stop shield raise
             if (event.getHand() == EquipmentSlot.OFF_HAND) {
                 event.setCancelled(true);
-                p.setCooldown(Material.SHIELD, 20); 
-                if (p.isSneaking()) {
+                p.setCooldown(Material.SHIELD, 20);
+                // Fire shockwave here (OFF_HAND fires first in Paper)
+                if (p.isSneaking() && swGuard.add(p.getUniqueId())) {
                     plugin.getAbilityManager().useShockwave(p);
                 }
                 return;
             }
-            
-            // Main hand fallback
+
+            // MAIN_HAND fallback — only fires if OFF_HAND didn't already fire it
             if (event.getHand() == EquipmentSlot.HAND) {
-                if (p.isSneaking()) {
+                if (p.isSneaking() && swGuard.add(p.getUniqueId())) {
                     event.setCancelled(true);
                     plugin.getAbilityManager().useShockwave(p);
                 }
             }
+            return;
         }
-        
-        // --- LEFT CLICK AIR (Prison / Mind Control from distance) ---
-        else if (a == Action.LEFT_CLICK_AIR || a == Action.LEFT_CLICK_BLOCK) {
-            if (event.getHand() != EquipmentSlot.HAND) return; // Prevent double trigger
-            
-            LivingEntity target = getTargetEntity(p, 10.0); // Range badha kar 10 kar di hai
+
+        // ── LEFT CLICK (air/block) → Prison / Mind Control via raytrace ──
+        if (a == Action.LEFT_CLICK_AIR || a == Action.LEFT_CLICK_BLOCK) {
+            if (event.getHand() != EquipmentSlot.HAND) return; // prevent double
+
+            // Guard prevents double-fire with onEntityHit
+            if (!lcGuard.add(p.getUniqueId())) return;
+
+            LivingEntity target = getTargetEntity(p, 10.0);
             if (target == null) return;
 
             if (p.isSneaking()) {
@@ -146,7 +174,7 @@ class AbilityListener implements Listener {
         }
     }
 
-    // ── SHOCKWAVE (Shift + Right Click on Entity) ────────────
+    // ── SHOCKWAVE (Shift + Right Click on Entity) ────────────────
     @EventHandler(priority = EventPriority.LOWEST)
     public void onInteractAtEntity(PlayerInteractAtEntityEvent event) {
         Player p = event.getPlayer();
@@ -155,42 +183,53 @@ class AbilityListener implements Listener {
         if (event.getHand() == EquipmentSlot.OFF_HAND) {
             event.setCancelled(true);
             p.setCooldown(Material.SHIELD, 20);
-            if (p.isSneaking()) {
+            if (p.isSneaking() && swGuard.add(p.getUniqueId())) {
                 plugin.getAbilityManager().useShockwave(p);
             }
             return;
         }
         if (event.getHand() == EquipmentSlot.HAND) {
-            if (p.isSneaking()) {
+            if (p.isSneaking() && swGuard.add(p.getUniqueId())) {
                 event.setCancelled(true);
                 plugin.getAbilityManager().useShockwave(p);
             }
         }
     }
 
-    // ── PRISON / MIND CONTROL (Left Click on Entity directly) ────────────
-    // ArmSwing event hara kar EntityDamageByEntity lagaya hai, ye 100% accurate hai.
+    // ── PRISON / MIND CONTROL (direct entity hit) ────────────────
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityHit(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player p)) return;
         if (!(event.getEntity() instanceof LivingEntity target)) return;
-        
         if (!plugin.getShieldManager().isActive(p)) return;
 
+        // Guard prevents double-fire with onInteract LEFT_CLICK path
+        if (!lcGuard.add(p.getUniqueId())) return;
+
         if (p.isSneaking()) {
-            event.setCancelled(true); // Normal hit cancel hoga
+            event.setCancelled(true);
             if (plugin.getAbilityManager().getMindControl().isControlled(target.getUniqueId())) {
                 plugin.getAbilityManager().refreshMindControl(p, target);
             } else {
                 plugin.getAbilityManager().useMindControl(p, target);
             }
         } else {
-            // Bina shift hit karne par Prison lagega (normal damage bhi padega)
+            event.setCancelled(true); // cancel vanilla damage — prison handles damage
             plugin.getAbilityManager().usePrison(p, target);
         }
     }
 
-    // RayTrace Fix: World.rayTraceEntities use kiya hai
+    // ── Vanilla attack cancel (shield holder does 0 vanilla damage) ──
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void cancelVanillaDamage(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player p)) return;
+        if (!plugin.getShieldManager().isActive(p)) return;
+        // Already cancelled in onEntityHit — this is a safety net
+        event.setCancelled(true);
+        event.setDamage(0);
+    }
+
+    // ── RayTrace helper ──────────────────────────────────────────
     private LivingEntity getTargetEntity(Player player, double maxRange) {
         RayTraceResult result = player.getWorld().rayTraceEntities(
             player.getEyeLocation(),
