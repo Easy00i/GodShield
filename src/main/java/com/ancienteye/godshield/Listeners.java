@@ -12,6 +12,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.CraftItemEvent;
@@ -45,7 +46,6 @@ class PlayerListener implements Listener {
         new BukkitRunnable() {
             @Override public void run() {
                 checkOffhand(event.getPlayer());
-                // Re-attach ritual boss bar if player was disconnected mid-ritual
                 plugin.getRitualManager().onPlayerJoin(event.getPlayer());
             }
         }.runTaskLater(plugin, 5L);
@@ -92,50 +92,61 @@ class DamageListener implements Listener {
 }
 
 // ════════════════════════════════════════════════════════
-//  AbilityListener  –  Input → Abilities
-//  Removed cancelVanillaAttack so player can hit normally.
+//  AbilityListener  –  Input → Abilities (100% FIXED)
 // ════════════════════════════════════════════════════════
 class AbilityListener implements Listener {
     private final GodShield plugin;
     AbilityListener(GodShield plugin) { this.plugin = plugin; }
 
-    // ── Shockwave: Shift + Right-Click (air or block) ────────────
-    //
-    // FIX: When shield is in offhand, Paper fires OFF_HAND event first.
-    // MAIN_HAND event NEVER fires when offhand item (shield) is present.
-    // So shockwave MUST be triggered from the OFF_HAND event.
-    // We also call p.setCooldown(Material.SHIELD, 1) to prevent the shield
-    // from raising server-side even after we cancel the event.
-    @EventHandler(priority = EventPriority.LOWEST) // LOWEST = catch before anything else
+    // ── SHOCKWAVE (Shift + Right Click) & LEFT CLICK AIR ────────────
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onInteract(PlayerInteractEvent event) {
         Player p = event.getPlayer();
         if (!plugin.getShieldManager().isActive(p)) return;
 
         Action a = event.getAction();
-        boolean isRight = (a == Action.RIGHT_CLICK_AIR || a == Action.RIGHT_CLICK_BLOCK);
-        if (!isRight) return;
 
-        // Always cancel off-hand so shield never raises
-        if (event.getHand() == EquipmentSlot.OFF_HAND) {
-            event.setCancelled(true);
-            p.setCooldown(Material.SHIELD, 1); // prevents vanilla shield-raise server-side
-
-            // MAIN_HAND event never fires with shield in offhand — fire shockwave HERE
-            if (p.isSneaking()) {
-                plugin.getAbilityManager().useShockwave(p);
+        // --- RIGHT CLICK (Shockwave) ---
+        if (a == Action.RIGHT_CLICK_AIR || a == Action.RIGHT_CLICK_BLOCK) {
+            // Off-hand interference fix (20 tick cooldown blocks shield raise)
+            if (event.getHand() == EquipmentSlot.OFF_HAND) {
+                event.setCancelled(true);
+                p.setCooldown(Material.SHIELD, 20); 
+                if (p.isSneaking()) {
+                    plugin.getAbilityManager().useShockwave(p);
+                }
+                return;
             }
-            return;
+            
+            // Main hand fallback
+            if (event.getHand() == EquipmentSlot.HAND) {
+                if (p.isSneaking()) {
+                    event.setCancelled(true);
+                    plugin.getAbilityManager().useShockwave(p);
+                }
+            }
         }
+        
+        // --- LEFT CLICK AIR (Prison / Mind Control from distance) ---
+        else if (a == Action.LEFT_CLICK_AIR || a == Action.LEFT_CLICK_BLOCK) {
+            if (event.getHand() != EquipmentSlot.HAND) return; // Prevent double trigger
+            
+            LivingEntity target = getTargetEntity(p, 10.0); // Range badha kar 10 kar di hai
+            if (target == null) return;
 
-        // MAIN_HAND fallback (fires only if no offhand item takes priority)
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (p.isSneaking()) {
-            event.setCancelled(true);
-            plugin.getAbilityManager().useShockwave(p);
+            if (p.isSneaking()) {
+                if (plugin.getAbilityManager().getMindControl().isControlled(target.getUniqueId())) {
+                    plugin.getAbilityManager().refreshMindControl(p, target);
+                } else {
+                    plugin.getAbilityManager().useMindControl(p, target);
+                }
+            } else {
+                plugin.getAbilityManager().usePrison(p, target);
+            }
         }
     }
 
-    // Shift + Right-Click on entity → Shockwave
+    // ── SHOCKWAVE (Shift + Right Click on Entity) ────────────
     @EventHandler(priority = EventPriority.LOWEST)
     public void onInteractAtEntity(PlayerInteractAtEntityEvent event) {
         Player p = event.getPlayer();
@@ -143,48 +154,49 @@ class AbilityListener implements Listener {
 
         if (event.getHand() == EquipmentSlot.OFF_HAND) {
             event.setCancelled(true);
-            p.setCooldown(Material.SHIELD, 1);
+            p.setCooldown(Material.SHIELD, 20);
             if (p.isSneaking()) {
                 plugin.getAbilityManager().useShockwave(p);
             }
             return;
         }
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (p.isSneaking()) {
-            event.setCancelled(true);
-            plugin.getAbilityManager().useShockwave(p);
+        if (event.getHand() == EquipmentSlot.HAND) {
+            if (p.isSneaking()) {
+                event.setCancelled(true);
+                plugin.getAbilityManager().useShockwave(p);
+            }
         }
     }
 
-    // Left-Click / Shift+Left-Click → Prison / Mind Control
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onArmSwing(PlayerAnimationEvent event) {
-        if (event.getAnimationType() != PlayerAnimationType.ARM_SWING) return;
-        Player p = event.getPlayer();
+    // ── PRISON / MIND CONTROL (Left Click on Entity directly) ────────────
+    // ArmSwing event hara kar EntityDamageByEntity lagaya hai, ye 100% accurate hai.
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onEntityHit(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player p)) return;
+        if (!(event.getEntity() instanceof LivingEntity target)) return;
+        
         if (!plugin.getShieldManager().isActive(p)) return;
-        LivingEntity target = getTargetEntity(p, 6.0);
-        if (target == null) return;
+
         if (p.isSneaking()) {
-            // Mind Control
+            event.setCancelled(true); // Normal hit cancel hoga
             if (plugin.getAbilityManager().getMindControl().isControlled(target.getUniqueId())) {
                 plugin.getAbilityManager().refreshMindControl(p, target);
             } else {
                 plugin.getAbilityManager().useMindControl(p, target);
             }
         } else {
-            // Prison
+            // Bina shift hit karne par Prison lagega (normal damage bhi padega)
             plugin.getAbilityManager().usePrison(p, target);
         }
     }
 
-    // FIX: player.rayTraceEntities(double) does not exist in Bukkit API.
-    // Correct method: World.rayTraceEntities() — entity-only, ignores blocks.
+    // RayTrace Fix: World.rayTraceEntities use kiya hai
     private LivingEntity getTargetEntity(Player player, double maxRange) {
         RayTraceResult result = player.getWorld().rayTraceEntities(
             player.getEyeLocation(),
             player.getEyeLocation().getDirection(),
             maxRange,
-            e -> !e.equals(player) // exclude self
+            e -> !e.equals(player) && e instanceof LivingEntity
         );
         if (result == null) return null;
         Entity hit = result.getHitEntity();
@@ -221,33 +233,28 @@ class CraftListener implements Listener {
             p.sendMessage(Component.text("   Use it to craft the God Shield.")
                 .color(NamedTextColor.YELLOW));
 
-            // Server mein sab players ko custom sound sunao
-for (Player online : Bukkit.getOnlinePlayers()) {
-    online.playSound(online.getLocation(),
-        "godshield.mace_forged", // custom sound key
-        SoundCategory.MASTER, 1.0f, 1.0f);
-      }
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                online.playSound(online.getLocation(),
+                    "godshield.mace_forged", 
+                    SoundCategory.MASTER, 1.0f, 1.0f);
+            }
             return;
         }
 
         // ── God Shield recipe: cancel normal give, start ritual ────
         if (!GodShieldItem.isGodShield(event.getRecipe().getResult())) return;
 
-        // Cancel the normal item delivery — ritual will drop it after 10 min
         event.setCancelled(true);
 
-        // Find crafting table location (the block the player clicked)
-        // CraftItemEvent gives us the inventory; the view's top inventory
-        // location is the crafting table block in the world.
-        org.bukkit.Location tableLoc = p.getLocation(); // fallback: player feet
+        org.bukkit.Location tableLoc = p.getLocation(); 
         if (event.getView().getTopInventory().getLocation() != null) {
             tableLoc = event.getView().getTopInventory().getLocation();
         }
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-    online.playSound(online.getLocation(),
-        "godshield.shield_forged",
-        SoundCategory.MASTER, 1.0f, 1.0f);
+            online.playSound(online.getLocation(),
+                "godshield.shield_forged",
+                SoundCategory.MASTER, 1.0f, 1.0f);
         }
 
         plugin.getRitualManager().startRitual(p, tableLoc);
@@ -256,7 +263,6 @@ for (Player online : Bukkit.getOnlinePlayers()) {
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPrepareCraft(PrepareItemCraftEvent event) {
         if (event.getRecipe() == null) return;
-        // Grey out mace if already crafted
         if (event.getRecipe().getResult().getType() == Material.MACE
                 && plugin.getCraftManager().isMaceCrafted()) {
             event.getInventory().setResult(null);
