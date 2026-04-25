@@ -242,14 +242,14 @@ class CraftListener implements Listener {
         }
 
         // ── God Shield recipe: cancel normal give, start ritual ────
-        if (!GodShieldItem.isGodShield(event.getRecipe().getResult())) return;
+        if (!GodShieldItem.isGodShield(event.getInventory().getResult())) return;
 
         event.setCancelled(true);
 
         org.bukkit.Location tableLoc = p.getLocation(); 
-        if (event.getView().getTopInventory().getLocation() != null) {
-            tableLoc = event.getView().getTopInventory().getLocation();
-        }
+        if (event.getInventory().getLocation() != null) {
+         tableLoc = event.getInventory().getLocation();
+      }
 
         for (Player online : Bukkit.getOnlinePlayers()) {
             online.playSound(online.getLocation(),
