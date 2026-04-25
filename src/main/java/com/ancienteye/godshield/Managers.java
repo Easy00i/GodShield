@@ -24,7 +24,7 @@ import org.joml.Vector3f;
 import java.util.*;
 
 // ════════════════════════════════════════════════════════
-//  OrbitManager  –  4 ItemDisplay shields orbit loop (PERFECTED)
+//  OrbitManager  –  6 ItemDisplay shields inward-facing (PERFECTED)
 // ════════════════════════════════════════════════════════
 class OrbitManager {
 
@@ -33,18 +33,14 @@ class OrbitManager {
     private final Map<UUID, Double>            angleMap = new HashMap<>();
     private BukkitRunnable orbitTask;
 
-    // ── Orbit constants ───────────────────────────────────────────
-    // RADIUS  : ~1 block from player centre (matches photo)
-    // SPEED   : very slow — 0.018 rad/tick ≈ 1 full orbit per ~6 sec
-    // HEIGHT  : chest height; shields float, never touch ground
-    // SCALE   : slightly smaller than player height (matches photo)
-    // BOB     : gentle sine-wave up/down, like floating on water
-    private static final double RADIUS        = 1.0;
-    private static final double SPEED         = 0.018;
-    private static final double HEIGHT        = 1.2;
-    private static final float  SCALE         = 1.35f;
-    private static final double BOB_AMPLITUDE = 0.055;   // ±0.055 blocks
-    private static final double BOB_SPEED     = 2.2;     // gentle cycles/sec
+    // ── Orbit constants (Photo Accurate) ──────────────────────────
+    private static final int    SHIELD_COUNT  = 6;        // 6 Shields fixed
+    private static final double RADIUS        = 1.15;     // Thoda sa gap (photo jaisa)
+    private static final double SPEED         = 0.022;    // Smooth movement
+    private static final double HEIGHT        = 1.1;      // Zameen se upar (chest height)
+    private static final float  SCALE         = 1.1f;     // Photo accurate size
+    private static final double BOB_AMPLITUDE = 0.06;     // Wave animation
+    private static final double BOB_SPEED     = 1.8;      // Smooth wave
 
     OrbitManager(GodShield plugin) {
         this.plugin = plugin;
@@ -73,30 +69,30 @@ class OrbitManager {
 
         for (int i = 0; i < shields.size(); i++) {
             ItemDisplay display = shields.get(i);
-            if (!display.isValid()) { removeOrbit(player.getUniqueId()); return; }
+            if (!display.isValid()) continue;
 
-            // Each shield is 90° apart (4 shields × 90° = 360°)
+            // Har shield 60° ke gap par (360 / 6 = 60)
             double theta = angle + (2.0 * Math.PI / shields.size()) * i;
 
-            // Gentle water-float bob — each shield phase-shifted so they
-            // don't all move in unison (creates a wave around the player)
-            double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 2.0));
+            // Wave/Bob animation
+            double bob = BOB_AMPLITUDE * Math.sin(timeS * BOB_SPEED + i * (Math.PI / 3.0));
 
             double x = base.getX() + RADIUS * Math.cos(theta);
             double y = base.getY() + HEIGHT + bob;
             double z = base.getZ() + RADIUS * Math.sin(theta);
 
+            // Teleport with no interpolation to keep it smooth
             display.teleport(new org.bukkit.Location(base.getWorld(), x, y, z));
 
-            // ── Correct outward-facing rotation ───────────────────
-            // α = π/2 − θ  →  front face always points away from player
-            float faceYaw = (float)(3.0 * Math.PI / 2.0 - theta);
+            // ── INWARD FACING ROTATION ───────────────────
+            // Calculation: theta - PI/2 makes it face the center (player)
+            float faceYaw = (float) Math.toDegrees(theta - Math.PI / 2.0);
             
             display.setTransformation(new Transformation(
-                new Vector3f(0f, 0f, 0f),                   // no translation
-                new AxisAngle4f(faceYaw, 0f, 1f, 0f),       // Y-axis rotation: face outward
-                new Vector3f(SCALE, SCALE, SCALE),           // uniform scale
-                new AxisAngle4f(0f, 0f, 1f, 0f)             // no additional spin
+                new Vector3f(0f, 0f, 0f),                   
+                new AxisAngle4f((float)Math.toRadians(-faceYaw), 0f, 1f, 0f), // Face Player
+                new Vector3f(SCALE, SCALE, SCALE),           
+                new AxisAngle4f(0f, 0f, 1f, 0f)             
             ));
         }
         angleMap.put(player.getUniqueId(), angle + SPEED);
@@ -105,13 +101,9 @@ class OrbitManager {
     void addOrbit(Player player) {
         if (orbitMap.containsKey(player.getUniqueId())) return;
         List<ItemDisplay> displays = new ArrayList<>();
-        for (int i = 0; i < 6; i++) {
-            double theta     = (2.0 * Math.PI / 6.0) * i;
-            double x         = player.getLocation().getX() + RADIUS * Math.cos(theta);
-            double y         = player.getLocation().getY() + HEIGHT;
-            double z         = player.getLocation().getZ() + RADIUS * Math.sin(theta);
-            float faceYaw = (float)(3.0 * Math.PI / 2.0 - theta);
-            org.bukkit.Location spawnLoc = new org.bukkit.Location(player.getWorld(), x, y, z);
+        
+        for (int i = 0; i < SHIELD_COUNT; i++) {
+            org.bukkit.Location spawnLoc = player.getLocation().add(0, HEIGHT, 0);
 
             ItemDisplay display = player.getWorld().spawn(spawnLoc, ItemDisplay.class, d -> {
                 d.setItemStack(GodShieldItem.create());
@@ -120,7 +112,7 @@ class OrbitManager {
                 d.setGravity(false);
                 d.setTransformation(new Transformation(
                     new Vector3f(0f, 0f, 0f),
-                    new AxisAngle4f(faceYaw, 0f, 1f, 0f),
+                    new AxisAngle4f(0f, 0f, 1f, 0f),
                     new Vector3f(SCALE, SCALE, SCALE),
                     new AxisAngle4f(0f, 0f, 1f, 0f)
                 ));
