@@ -7,6 +7,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.SoundCategory;
+import net.kyori.adventure.title.Title;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -242,6 +243,26 @@ class AbilityListener implements Listener {
         if (hit instanceof LivingEntity living) return living;
         return null;
     }
+
+
+@EventHandler
+public void onPickupDragonEgg(EntityPickupItemEvent event) {
+    if (!(event.getEntity() instanceof Player p)) return;
+    if (event.getItem().getItemStack().getType() != Material.DRAGON_EGG) return;
+
+    String playerName = p.getName();
+    for (Player online : Bukkit.getOnlinePlayers()) {
+        online.showTitle(Title.title(
+            Component.text("Dragon Egg Obtained!").color(NamedTextColor.DARK_PURPLE),
+            Component.text("Obtained by " + playerName).color(NamedTextColor.LIGHT_PURPLE),
+            Title.Times.times(
+                java.time.Duration.ofMillis(500),
+                java.time.Duration.ofMillis(3500),
+                java.time.Duration.ofMillis(1000)
+            )
+        ));
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════
@@ -271,6 +292,20 @@ class CraftListener implements Listener {
                 .color(NamedTextColor.GOLD));
             p.sendMessage(Component.text("   Use it to craft the God Shield.")
                 .color(NamedTextColor.YELLOW));
+
+            // Title announcement to all players
+     String crafterName = p.getName();
+       for (Player online : Bukkit.getOnlinePlayers()) {
+            online.showTitle(Title.title(
+             Component.text("⚔ Mace Forged!").color(NamedTextColor.GOLD),
+             Component.text("Crafted by " + crafterName).color(NamedTextColor.YELLOW),
+             Title.Times.times(
+              java.time.Duration.ofMillis(500),   // fade in
+               java.time.Duration.ofMillis(3500),  // stay
+               java.time.Duration.ofMillis(1000)   // fade out
+             )
+          ));
+        }
 
             for (Player online : Bukkit.getOnlinePlayers()) {
                 online.playSound(online.getLocation(),
