@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.SoundCategory;
 import net.kyori.adventure.title.Title;
 import org.bukkit.entity.Player;
